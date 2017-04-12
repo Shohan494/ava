@@ -1,9 +1,10 @@
 'use strict';
 const path = require('path');
-const jestSnapshot = require('jest-snapshot');
+const stripAnsi = require('strip-ansi');
 const test = require('tap').test;
 const assert = require('../lib/assert');
 const formatValue = require('../lib/format-assert-error').formatValue;
+const snapshot = require('../lib/snapshot');
 
 let lastFailure = null;
 let lastPassed = false;
@@ -44,7 +45,7 @@ function failsWith(t, fn, subset) {
 		t.is(lastFailure.values.length, subset.values.length);
 		lastFailure.values.forEach((s, i) => {
 			t.is(s.label, subset.values[i].label);
-			t.match(s.formatted, subset.values[i].formatted);
+			t.match(stripAnsi(s.formatted), subset.values[i].formatted);
 		});
 	} else {
 		t.same(lastFailure.values, []);
@@ -573,37 +574,38 @@ test('.snapshot()', t => {
 	// Ignore errors and make sure not to run tests with the `-b` (bail) option.
 	const update = false;
 
-	const state = jestSnapshot.initializeSnapshotState(__filename, update, path.join(__dirname, 'fixture', 'assert.snap'));
+	const state = snapshot.load(path.join(__dirname, 'fixture'), 'assert', update);
+	const fauxTest = {
+		title: '',
+		compareWithSnapshot(expected) {
+			return state.compare(this.title, expected);
+		}
+	};
 	const executionContext = {
-		_test: {
-			getSnapshotState() {
-				return state;
-			}
-		},
-		title: ''
+		_test: fauxTest
 	};
 
 	passes(t, () => {
-		executionContext.title = 'passes';
+		fauxTest.title = 'passes';
 		assertions.snapshot.call(executionContext, {foo: 'bar'});
 	});
 
 	failsWith(t, () => {
-		executionContext.title = 'fails';
+		fauxTest.title = 'fails';
 		assertions.snapshot.call(executionContext, {foo: update ? 'bar' : 'not bar'});
 	}, {
 		assertion: 'snapshot',
 		message: 'Did not match snapshot',
-		values: [{label: 'Difference:', formatted: 'Object {\n-   "foo": "bar",\n+   "foo": "not bar",\n  }'}]
+		values: [{label: 'Difference:', formatted: '  Object {\n-   foo: \'bar\',\n+   foo: \'not bar\',\n  }'}]
 	});
 
 	failsWith(t, () => {
-		executionContext.title = 'fails';
+		fauxTest.title = 'fails';
 		assertions.snapshot.call(executionContext, {foo: update ? 'bar' : 'not bar'}, 'my message');
 	}, {
 		assertion: 'snapshot',
 		message: 'my message',
-		values: [{label: 'Difference:', formatted: 'Object {\n-   "foo": "bar",\n+   "foo": "not bar",\n  }'}]
+		values: [{label: 'Difference:', formatted: '  Object {\n-   foo: \'bar\',\n+   foo: \'not bar\',\n  }'}]
 	});
 
 	if (update) {

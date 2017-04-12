@@ -1,0 +1,19 @@
+AVA Snapshot v1
+
+# passes
+
+Object {
+  foo: 'bar',
+}
+
+# fails
+
+Object {
+  foo: 'bar',
+}
+
+---
+
+Object {
+  foo: 'bar',
+}
